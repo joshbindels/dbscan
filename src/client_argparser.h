@@ -82,6 +82,7 @@ inline Options parse_arguments(int argc, char** argv)
         if (arg == "--help" || arg == "-h")
         {
             options.show_help = true;
+            print_usage(argv[0]);
             return options;
         }
         else if (arg == "--input")

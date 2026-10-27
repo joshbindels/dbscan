@@ -9,17 +9,51 @@ project(VehicleTracker
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_library(httplib INTERFACE)
-target_include_directories(httplib INTERFACE vendored)
+include(FetchContent)
 
-add_library(dbscan STATIC vendored/dbscan.cpp)
-target_include_directories(dbscan PUBLIC vendored)
+find_package(prometheus-cpp CONFIG QUIET)
+if (NOT TARGET prometheus-cpp::core)
+  set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+  set(ENABLE_PUSH OFF CACHE BOOL "" FORCE)
+  set(ENABLE_PULL ON CACHE BOOL "" FORCE)
+  FetchContent_Declare(
+    prometheus-cpp
+    GIT_REPOSITORY https://github.com/jupp0r/prometheus-cpp.git
+    GIT_TAG v1.3.0
+    GIT_SHALLOW TRUE
+    GIT_SUBMODULES "3rdparty/civetweb"
+    GIT_SUBMODULES_RECURSE TRUE
+  )
+  FetchContent_MakeAvailable(prometheus-cpp)
+endif()
+
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+enable_testing()
+
+add_library(httplib INTERFACE)
+target_include_directories(httplib INTERFACE libs)
 
 add_library(json INTERFACE)
-target_include_directories(json INTERFACE vendored)
+target_include_directories(json INTERFACE libs)
 
 add_executable(service service.cpp)
-target_link_libraries(service PRIVATE dbscan httplib json)
+target_link_libraries(service PRIVATE
+    httplib
+    json
+    prometheus-cpp::pull
+)
 
 add_executable(processPointcloud processPointcloud.cpp)
 target_link_libraries(processPointcloud PRIVATE httplib json)
+
+add_executable(test_dbscan test_dbscan.cpp)
+target_link_libraries(test_dbscan PRIVATE gtest gtest_main)
+target_include_directories(test_dbscan PRIVATE libs)
+
+add_test(NAME test_dbscan COMMAND test_dbscan)

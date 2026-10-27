@@ -1,85 +1,109 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
+#include <map>
 #include <stdio.h>
 
-#include "dbscan.h"
+#include "dbscan.hpp"
 #include "httplib.h"
 #include "json.hpp"
+#include "metrics.hpp"
 
-void read_benchmark(std::vector<Point>& points)
+void read_points_from_request(const nlohmann::json& data, std::vector<dbscan::Point>& points)
 {
-    const std::string filename = "/Users/josh/workspace/vehicle_tracker/test_data/benhcmark_hepta.dat";
-	std::ifstream file(filename);
-
-    if (!file.is_open())
+    if (!data.is_object() || !data.contains("points") ||
+        !data.at("points").is_string())
     {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
+        std::cerr << "Error: request does not contain a points string\n";
+        return;
     }
 
-    // first line is number of points
-    size_t num_points;
-    file >> num_points;
-    file >> std::ws;
+    std::istringstream stream(data.at("points").get<std::string>());
 
     double x;
     double y;
     double z;
-    char comma;
-    size_t cluster;
 
-    while (file >> x >> comma >> y >> comma >> z >> comma >> cluster)
+    while (stream >> x >> y >> z)
     {
-        Point temp_p;
-        temp_p.x = x;
-        temp_p.y = x;
-        temp_p.z = x;
-        temp_p.clusterID = UNCLASSIFIED;
-        points.push_back(std::move(temp_p));
+        dbscan::Point point;
+        point.x = x;
+        point.y = y;
+        point.z = z;
+        points.push_back(std::move(point));
     }
-
-    std::cout << "Number of points: " << num_points << std::endl;
-
-    file.close();
 }
 
-void print_results(std::vector<Point>& points, int num_points)
+std::string points_to_xyz(const std::vector<dbscan::Point>& points)
 {
-    int i=0;
-    std::cout << "Number of points: " << num_points << std::endl;
-    std::cout << "x\ty\tz\tcluster_id" << std::endl;
-    return;
-    while (i < num_points)
-    {
-        std::cout << points[i].x << "\t"
-        << points[i].y << "\t"
-        << points[i].z << "\t"
-        << points[i].clusterID << std::endl;
-        i++;
-    }
-}
+    std::ostringstream output;
 
+    for (const auto& point : points)
+    {
+        output << point.x << ' ' << point.y << ' ' << point.z << '\n';
+    }
+
+    return output.str();
+}
 
 int main(int argc, char** argv)
 {
+    metrics::Metrics metrics;
+
     httplib::Server srv;
 
-    srv.Post("/dbscan", [](const httplib::Request& req, httplib::Response& res)
+    srv.Post("/dbscan", [&metrics](const httplib::Request& req, httplib::Response& res) -> void
     {
-        nlohmann::json data = nlohmann::json::parse(req.body);
-        std::cout << "Got request with: " << std::endl
-        << "eps: " << data["eps"] << std::endl
-        << "min_samples: " << data["min_samples"] << std::endl;
+        metrics.record_request();
 
-        std::vector<Point> points;
-        read_benchmark(points);
-        DBSCAN ds(4, (0.75 * 0.75), points);
-        ds.run();
-        //print_results(ds.m_points, ds.getTotalPointSize());
+        nlohmann::json data;
+        double eps;
+        size_t min_pts;
+        try
+        {
+            data = nlohmann::json::parse(req.body);
+            eps = data["eps"];
+            min_pts = data["min_samples"];
+        }
+        catch (const std::exception& error)
+        {
+            std::cerr << "Error: request format: " << error.what() << "\n";
+            return;
+        }
+
+        std::vector<dbscan::Point> points;
+        std::cout << "points: " << points.size() << '\n';
+        read_points_from_request(data, points);
+        metrics.record_request_points(points.size());
+
+        std::vector<int> labels = dbscan::dbscan(points, eps, min_pts);
+
+        std::map<int, std::vector<dbscan::Point>> clusters;
+        std::vector<dbscan::Point> noise_points;
+
+        for (size_t i = 0; i < points.size(); ++i)
+        {
+            if (labels[i] == dbscan::NOISE)
+            {
+                noise_points.push_back(points[i]);
+            }
+            else if (labels[i] != dbscan::UNDEFINED)
+            {
+                clusters[labels[i]].push_back(points[i]);
+            }
+        }
+
         nlohmann::json resp_json = nlohmann::json();
-        resp_json["total_points"] = ds.getTotalPointSize();
+        resp_json["noise"] = points_to_xyz(noise_points);
+        nlohmann::json clusters_json = nlohmann::json::object();
+        for (const auto& [cluster_id, cluster_points] : clusters)
+        {
+            clusters_json[std::to_string(cluster_id)] = points_to_xyz(cluster_points);
+        }
+        resp_json["clusters"] = clusters_json;
         res.set_content(resp_json.dump(), "application/json");
     });
 
