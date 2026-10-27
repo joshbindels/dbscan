@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <iterator>
 
-// based on https://en.wikipedia.org/wiki/DBSCAN#Original_query-based_algorithm
 
 namespace dbscan
 {
@@ -49,6 +48,10 @@ std::vector<int> set_union(const std::vector<int>& a, const std::vector<int>& b)
 
 } // namespace
 
+/*
+ * Algorithm based on:
+ * based on https://en.wikipedia.org/wiki/DBSCAN#Original_query-based_algorithm
+ */
 std::vector<int> dbscan(const std::vector<Point>& points, double eps, size_t min_pts)
 {
     std::vector<int> labels(points.size(), UNDEFINED);
