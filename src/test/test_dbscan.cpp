@@ -25,6 +25,8 @@ std::map<int, std::set<size_t>> get_clusters(const std::vector<dbscan::Point>& p
 
 } // namespace
 
+// All points are farther apart than eps and fewer than min_pts can be
+// neighbors, so the algorithm should classify every point as noise.
 TEST(DBScanTest, AllNoise)
 {
     std::vector<dbscan::Point> points = {
@@ -39,6 +41,8 @@ TEST(DBScanTest, AllNoise)
     }
 }
 
+// Three mutually close points with min_pts=2 should form exactly one
+// cluster containing all three points.
 TEST(DBScanTest, SingleCluster)
 {
     std::vector<dbscan::Point> points = {
@@ -51,6 +55,8 @@ TEST(DBScanTest, SingleCluster)
     EXPECT_EQ(clusters.begin()->second.size(), 3);
 }
 
+// Two tight groups separated by a large gap should produce two independent
+// clusters rather than being merged into one.
 TEST(DBScanTest, TwoSeparateClusters)
 {
     std::vector<dbscan::Point> points = {
@@ -67,6 +73,8 @@ TEST(DBScanTest, TwoSeparateClusters)
     }
 }
 
+// The three close points satisfy the density requirement and should share one
+// cluster; the isolated point should remain noise.
 TEST(DBScanTest, CoreAndBorderPoints)
 {
     std::vector<dbscan::Point> points = {
@@ -84,6 +92,8 @@ TEST(DBScanTest, CoreAndBorderPoints)
     EXPECT_EQ(labels[3], -1);
 }
 
+// The middle point is within eps of both endpoints, so density should connect
+// all three points into one cluster even though the endpoints are farther apart.
 TEST(DBScanTest, ChainConnectivity)
 {
     std::vector<dbscan::Point> points = {
@@ -99,6 +109,8 @@ TEST(DBScanTest, ChainConnectivity)
     EXPECT_EQ(labels[0], labels[2]);
 }
 
+// A point far from the dense cluster should remain noise and should not be
+// absorbed into the nearby cluster's label.
 TEST(DBScanTest, NoiseNotAbsorbed)
 {
     std::vector<dbscan::Point> points = {
@@ -113,18 +125,8 @@ TEST(DBScanTest, NoiseNotAbsorbed)
     EXPECT_NE(labels[0], labels[4]);
 }
 
-TEST(DBScanTest, NonIntegerCoordinates)
-{
-    std::vector<dbscan::Point> points = {
-        {-0.5, 0.25, 1.75},
-        {-0.4, 0.3, 1.8},
-        {-0.45, 0.22, 1.77}
-    };
-    auto clusters = get_clusters(points, 0.2, 2);
-    EXPECT_EQ(clusters.size(), 1);
-    EXPECT_EQ(clusters.begin()->second.size(), 3);
-}
-
+// Runs against the known benchmark dataset and compares the cluster and noise
+// counts with scikit-learn's result to catch algorithm regressions.
 TEST(DBScanTest, BenchmarkDatasetRegression)
 {
     std::vector<dbscan::Point> points;

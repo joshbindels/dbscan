@@ -34,6 +34,4 @@ def run_dbscan_and_export(
   print(f"Saved labeled output to {output_path}")
 
 
-# Example usage:
-# run_dbscan_and_export("sphere_benchmark.xyz", "sphere_clustered.xyz", eps=0.3, min_samples=10)
 run_dbscan_and_export(f"{sys.argv[1]}", f"{sys.argv[2]}.xyz", eps=float(sys.argv[3]), min_samples=int(sys.argv[4]))
