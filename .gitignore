@@ -1,3 +1,6 @@
 *.swp
 build
 scratch.md
+venv
+.DS
+*.pyc
