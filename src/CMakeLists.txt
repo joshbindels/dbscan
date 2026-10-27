@@ -32,6 +32,8 @@ FetchContent_Declare(
   URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
 )
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 enable_testing()
@@ -42,18 +44,20 @@ target_include_directories(httplib INTERFACE libs)
 add_library(json INTERFACE)
 target_include_directories(json INTERFACE libs)
 
-add_executable(service service.cpp)
+add_executable(service service/service.cpp)
 target_link_libraries(service PRIVATE
     httplib
     json
     prometheus-cpp::pull
 )
+target_include_directories(service PRIVATE common service)
 
-add_executable(processPointcloud processPointcloud.cpp)
+add_executable(processPointcloud client/processPointcloud.cpp)
 target_link_libraries(processPointcloud PRIVATE httplib json)
+target_include_directories(processPointcloud PRIVATE common client)
 
-add_executable(test_dbscan test_dbscan.cpp)
+add_executable(test_dbscan test/test_dbscan.cpp)
 target_link_libraries(test_dbscan PRIVATE gtest gtest_main)
-target_include_directories(test_dbscan PRIVATE libs)
+target_include_directories(test_dbscan PRIVATE common test libs)
 
 add_test(NAME test_dbscan COMMAND test_dbscan)
