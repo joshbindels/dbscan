@@ -1,10 +1,18 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include <algorithm>
+#include <cctype>
+#include <filesystem>
 #include <set>
 #include <map>
 #include <fstream>
+#include <stdexcept>
+#include <string>
 #include "dbscan.hpp"
+
+#ifndef BENCHMARK_DATA_DIR
+#define BENCHMARK_DATA_DIR "test/test_data/benchmark"
+#endif
 
 namespace
 {
@@ -21,6 +29,152 @@ std::map<int, std::set<size_t>> get_clusters(const std::vector<dbscan::Point>& p
         }
     }
     return clusters;
+}
+
+std::vector<dbscan::Point> read_xyz(const std::filesystem::path& path)
+{
+    std::ifstream file(path);
+    if (!file.is_open())
+    {
+        throw std::runtime_error("could not open " + path.string());
+    }
+
+    std::vector<dbscan::Point> points;
+    dbscan::Point point;
+    while (file >> point.x >> point.y >> point.z)
+    {
+        points.push_back(point);
+    }
+
+    return points;
+}
+
+std::vector<int> read_labels(const std::filesystem::path& path)
+{
+    std::ifstream file(path);
+    if (!file.is_open())
+    {
+        throw std::runtime_error("could not open " + path.string());
+    }
+
+    std::vector<int> labels;
+    int label = 0;
+    while (file >> label)
+    {
+        labels.push_back(label);
+    }
+
+    return labels;
+}
+
+std::vector<std::filesystem::path> benchmark_files()
+{
+    namespace fs = std::filesystem;
+
+    std::vector<fs::path> files;
+    for (const auto& entry : fs::directory_iterator(BENCHMARK_DATA_DIR))
+    {
+        if (entry.is_regular_file() && entry.path().extension() == ".xyz")
+        {
+            files.push_back(entry.path());
+        }
+    }
+
+    std::sort(files.begin(), files.end());
+    return files;
+}
+
+void check_benchmark_dataset(const std::filesystem::path& path)
+{
+    const auto points = read_xyz(path);
+
+    auto label_path = path;
+    label_path.replace_extension(".lbl");
+    const auto ground_truth = read_labels(label_path);
+
+    ASSERT_EQ(points.size(), ground_truth.size());
+
+    constexpr double eps = 0.5;
+    constexpr size_t min_pts = 10;
+    const auto labels = dbscan::dbscan(points, eps, min_pts);
+
+    std::set<int> predicted_clusters;
+    std::set<int> ground_truth_clusters;
+    std::map<int, std::map<int, size_t>> overlaps;
+
+    for (size_t i = 0; i < labels.size(); ++i)
+    {
+        if (labels[i] != dbscan::NOISE)
+        {
+            predicted_clusters.insert(labels[i]);
+        }
+        if (ground_truth[i] != -1)
+        {
+            ground_truth_clusters.insert(ground_truth[i]);
+        }
+        if (labels[i] != dbscan::NOISE && ground_truth[i] != -1)
+        {
+            overlaps[labels[i]][ground_truth[i]]++;
+        }
+    }
+
+    EXPECT_EQ(predicted_clusters.size(), ground_truth_clusters.size());
+
+    // Predicted cluster IDs are arbitrary, so map each one to the ground-truth
+    // label that most of its points have.
+    std::map<int, int> predicted_to_truth;
+    for (const auto& [predicted_id, counts] : overlaps)
+    {
+        int best_label = -1;
+        size_t best_count = 0;
+        for (const auto& [truth_id, count] : counts)
+        {
+            if (count > best_count)
+            {
+                best_label = truth_id;
+                best_count = count;
+            }
+        }
+        predicted_to_truth[predicted_id] = best_label;
+    }
+
+    std::set<int> mapped_truth_clusters;
+    for (const auto& [predicted_id, truth_id] : predicted_to_truth)
+    {
+        mapped_truth_clusters.insert(truth_id);
+    }
+    EXPECT_EQ(mapped_truth_clusters.size(), ground_truth_clusters.size());
+
+    size_t wrong_cluster = 0;
+    size_t cluster_points_lost = 0;
+    size_t noise_points_absorbed = 0;
+
+    for (size_t i = 0; i < labels.size(); ++i)
+    {
+        if (ground_truth[i] == -1)
+        {
+            if (labels[i] != dbscan::NOISE)
+            {
+                noise_points_absorbed++;
+            }
+            continue;
+        }
+
+        if (labels[i] == dbscan::NOISE)
+        {
+            cluster_points_lost++;
+        }
+        else if (predicted_to_truth[labels[i]] != ground_truth[i])
+        {
+            wrong_cluster++;
+        }
+    }
+
+    EXPECT_EQ(cluster_points_lost, 0);
+    EXPECT_EQ(wrong_cluster, 0);
+
+    // DBSCAN may absorb a few border-line noise points into a cluster.
+    EXPECT_LE(noise_points_absorbed, points.size() / 100);
 }
 
 } // namespace
@@ -125,45 +279,16 @@ TEST(DBScanTest, NoiseNotAbsorbed)
     EXPECT_NE(labels[0], labels[4]);
 }
 
-// Runs against the known benchmark dataset and compares the cluster and noise
-// counts with scikit-learn's result to catch algorithm regressions.
-TEST(DBScanTest, BenchmarkDatasetRegression)
+// Runs each generated benchmark dataset and compares the discovered partition
+// against the ground-truth labels in the matching .lbl file.
+TEST(DBScanBenchmark, MatchesGroundTruthLabels)
 {
-    std::vector<dbscan::Point> points;
-    std::ifstream file("/Users/josh/workspace/vehicle_tracker/test_data/benhcmark_hepta.dat");
-    ASSERT_TRUE(file.is_open());
-    size_t num_points;
-    file >> num_points;
-    file >> std::ws;
-    double x, y, z;
-    char comma;
-    size_t cluster;
-    while (file >> x >> comma >> y >> comma >> z >> comma >> cluster)
+    const auto files = benchmark_files();
+    ASSERT_FALSE(files.empty());
+
+    for (const auto& path : files)
     {
-        points.push_back({x, y, z});
+        SCOPED_TRACE(path.filename().string());
+        check_benchmark_dataset(path);
     }
-    file.close();
-
-    std::vector<int> labels = dbscan::dbscan(points, 0.75, 4);
-
-    int num_clusters = 0;
-    for (int label : labels)
-    {
-        if (label > num_clusters)
-        {
-            num_clusters = label;
-        }
-    }
-
-    int num_noise = 0;
-    for (int label : labels)
-    {
-        if (label == -1)
-        {
-            num_noise++;
-        }
-    }
-
-    EXPECT_EQ(num_clusters, 7);
-    EXPECT_EQ(num_noise, 1);
 }

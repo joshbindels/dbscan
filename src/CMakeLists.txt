@@ -59,5 +59,14 @@ target_include_directories(processPointcloud PRIVATE common client)
 add_executable(test_dbscan test/test_dbscan.cpp)
 target_link_libraries(test_dbscan PRIVATE gtest gtest_main)
 target_include_directories(test_dbscan PRIVATE common test libs)
+target_compile_definitions(test_dbscan PRIVATE
+    BENCHMARK_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/test_data/benchmark"
+)
 
 add_test(NAME test_dbscan COMMAND test_dbscan)
+
+add_executable(test_dbscan_performance test/test_dbscan_performance.cpp)
+target_include_directories(test_dbscan_performance PRIVATE common)
+target_compile_definitions(test_dbscan_performance PRIVATE
+    BENCHMARK_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/test_data/benchmark"
+)
