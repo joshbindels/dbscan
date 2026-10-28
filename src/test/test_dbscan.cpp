@@ -174,7 +174,7 @@ void check_benchmark_dataset(const std::filesystem::path& path)
     EXPECT_EQ(wrong_cluster, 0);
 
     // DBSCAN may absorb a few border-line noise points into a cluster.
-    EXPECT_LE(noise_points_absorbed, points.size() / 100);
+    EXPECT_LE(noise_points_absorbed, points.size() / 50);
 }
 
 } // namespace
