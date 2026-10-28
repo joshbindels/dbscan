@@ -49,8 +49,6 @@ public:
         payload["min_samples"] = m_min_samples;
         payload["points"] = points;
 
-        std::cout << "points: " << points << std::endl;
-
         auto res = client.Post("/dbscan", payload.dump(), "application/json");
         if (!res)
         {

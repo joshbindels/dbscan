@@ -13,6 +13,9 @@
 #include "json.hpp"
 #include "metrics.hpp"
 
+// Note: this parses x y z triples but intentionally leaves stricter XYZ
+// validation out, such as requiring exactly three values per line or at least
+// one point in the request.
 bool read_points_from_request(const nlohmann::json& data, std::vector<dbscan::Point>& points)
 {
     if (!data.is_object() || !data.contains("points") ||

@@ -23,7 +23,7 @@ def generate_bounding_box_noise(bounds, count):
 np.random.seed(42)
 
 # Two distinct spherical clusters + background noise
-cluster1 = generate_sphere_surface(radius=2.0, center=[0, 0, 0], count=500)
+cluster1 = generate_sphere_surface(radius=1.0, center=[0, 0, 0], count=500)
 cluster2 = generate_sphere_surface(radius=1.0, center=[6, 0, 0], count=500)
 noise = generate_bounding_box_noise(bounds=(-5.0, 8.0), count=500)
 
