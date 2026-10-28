@@ -3,11 +3,11 @@
 A client-server application that allows a client to send xyz files to a server over HTTP and receive noise/clusters in return (using DBScan).
 
 # Dependencies
-The C++ service and client have 2 dependencies that are vendored in `src/libs`
+The C++ service and client have two dependencies that are vendored in `src/libs`
 * cpp-httplib
 * nlohmann json
 
-And 2 dependencies that are downloaded at build time
+And two dependencies that are downloaded at build time
 * GTest
 * Prometheus-cpp
 
@@ -23,7 +23,7 @@ cmake --build build -j
 # Run
 
 ## service
-The service runs on `localhost:8080` it also exposes prometheus metrics at `localhost:9091/metrics`
+The service runs on `localhost:8080` it also exposes Prometheus metrics at `localhost:9091/metrics`
 ```bash
 ./build/service
 ```
@@ -43,13 +43,13 @@ The client sends a POST request to `localhost:8080/dbscan`. It sends the content
 
 # HTTP API
 
-The service exposes a POST endpoint at `/dbscan` it expects an `application/json` message with a body in the format:
+The service exposes a POST endpoint at `/dbscan`. It expects an `application/json` message with a body in the format:
 
 ```json
 {
     "eps": 0.5,
     "min_samples": 10,
-    "points": "a b c\nd e f..."
+    "points": "x y z\nx y z..."
 }
 ```
 
@@ -78,11 +78,11 @@ The service exposes metrics at `localhost:9091/metrics`.
 Histogram metrics also expose the standard `_bucket`, `_sum`, and `_count` series.
 
 
-# Testing & Peformance
+# Testing & Performance 
 This package contains 3 types of tests:
 1. Unit tests to test specific DBSCAN edge cases
 2. Benchmark to check DBSCAN results on various input files
-3. Performance tests for DBSCAN in solation as well as end-to-end tests of the service.
+3. Performance tests for DBSCAN in isolation as well as end-to-end tests of the service.
 
 ## Synthetic data
 Synthetic data for the tests was generated with `src/scripts/generate_xyz.py` and is stored in `src/test/test_data/benchmark`
@@ -128,7 +128,7 @@ First run the service
 
 Then run the Python script
 ```bash
-python src/test/test_end_to_end_performance.py
+python3 src/test/test_end_to_end_performance.py
 ```
 
 Results
@@ -148,4 +148,5 @@ PASS
 
 # Known limitations
 - [Client] Existing files in the output dir are not cleared. Multiple runs on the same output-dir could lead to outputs from multiple inputs living in the same output directory.
-- [DBSCAN] DBSCAN was implemented according to [source](`https://en.wikipedia.org/wiki/DBSCAN#Original_query-based_algori). It is possible to optimize it further (especially the RangeQuery) function but the current implementation already exceeds the 100ms criteria.
+- [Client] Input must be whitespace-separated, the column XYZ no header, no comments, commas or extra columns.
+- [DBSCAN] DBSCAN was implemented according to [source](https://en.wikipedia.org/wiki/DBSCAN#Original_query-based_algorithm). It is possible to optimize it further (especially the RangeQuery) function but the current implementation meets the 100ms criteria.
