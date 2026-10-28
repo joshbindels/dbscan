@@ -65,11 +65,27 @@ The service responds with an `application/json` message in the format:
 }
 ```
 
+# Metrics
+The service exposes metrics at `localhost:9091/metrics`.
+
+- `http_requests_total{status}` — total HTTP requests handled, grouped by response status code.
+- `http_request_duration_milliseconds` — histogram of total request handling time in milliseconds.
+- `service_request_points` — histogram of the number of points received per request.
+- `dbscan_duration_milliseconds` — histogram of DBSCAN execution time per request.
+- `dbscan_clusters` — histogram of the number of clusters found per request.
+- `dbscan_noise_ratio` — histogram of the fraction of input points classified as noise per request.
+
+Histogram metrics also expose the standard `_bucket`, `_sum`, and `_count` series.
+
+
 # Testing & Peformance
 This package contains 3 types of tests:
 1. Unit tests to test specific DBSCAN edge cases
 2. Benchmark to check DBSCAN results on various input files
 3. Performance tests for DBSCAN in solation as well as end-to-end tests of the service.
+
+## Synthetic data
+Synthetic data for the tests was generated with `src/scripts/generate_xyz.py` and is stored in `src/test/test_data/benchmark`
 
 ## Unit tests and benchmark
 **NOTE: Must build in release mode -DCMAKE_BUILD_TYPE=Release for performance tests to pass**
@@ -105,6 +121,12 @@ p8500.xyz                 8500           119.145
 ### end-to-end performance test
 Checks the end-to-end performance, the time it takes for a client to receive a response. This includes the DBSCAN latency as well as any additional overhead (network etc.). The target is handling 5000 points within 100ms. This test runs a 5000 point file 10x and ensures all of the runs were under 100ms.
 
+First run the service
+```bash
+./build/service
+```
+
+Then run the Python script
 ```bash
 python src/test/test_end_to_end_performance.py
 ```
@@ -125,4 +147,5 @@ PASS
 ```
 
 # Known limitations
-
+- [Client] Existing files in the output dir are not cleared. Multiple runs on the same output-dir could lead to outputs from multiple inputs living in the same output directory.
+- [DBSCAN] DBSCAN was implemented according to [source](`https://en.wikipedia.org/wiki/DBSCAN#Original_query-based_algori). It is possible to optimize it further (especially the RangeQuery) function but the current implementation already exceeds the 100ms criteria.
